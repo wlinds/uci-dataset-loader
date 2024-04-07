@@ -1,0 +1,55 @@
+.element-container.st-emotion-cache-1lypi3u.e1f1d6gn4 p { 
+    color: black; /* Color of sidebar */
+}
+
+h1 {
+    color: #0d66a1;
+}
+
+p {
+    color: black;
+}
+
+.stSidebar div[data-baseweb="typo-text-large"] {
+    color: black;
+}
+
+.st-ax {
+    color: black; /* Color of current selection in selectbox (dropdown) */
+}
+
+.sidebar-h2 {
+    color: black;
+}
+
+
+.st-emotion-cache-ustzx7-e1nzilvr5 {
+    color: black;
+}
+
+
+/* Hide the default radio button */
+div.row-widget.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"] > div:first-child {
+    display: none;
+}
+
+/* Style for each radio button */
+div.row-widget.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"] {
+    background: #f0f0f0;
+    padding: 8px 12px;
+    margin: 4px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+div.row-widget.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"]:hover {
+    background: #d4d4d6;
+}
+
+
+div[data-testid="stVerticalBlock"] div[style*="flex-direction: column;"] div[data-testid="stVerticalBlock"] {
+    border: 1px solid red;
+
+}
