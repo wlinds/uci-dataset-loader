@@ -28,12 +28,13 @@ p {
 }
 
 
+/* Radio button styling */
+
 /* Hide the default radio button */
 div.row-widget.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"] > div:first-child {
     display: none;
 }
 
-/* Style for each radio button */
 div.row-widget.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"] {
     background: #f0f0f0;
     padding: 8px 12px;
@@ -44,12 +45,11 @@ div.row-widget.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"] {
     transition: background-color 0.3s ease;
 }
 
-div.row-widget.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"]:hover {
-    background: #d4d4d6;
+.stRadio [role=radiogroup]{
+    align-items: center;
+    justify-content: center;
 }
 
-
-div[data-testid="stVerticalBlock"] div[style*="flex-direction: column;"] div[data-testid="stVerticalBlock"] {
-    border: 1px solid red;
-
+div.row-widget.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"]:hover {
+    background: #d4d4d6;
 }
