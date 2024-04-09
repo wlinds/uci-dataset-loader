@@ -1,15 +1,13 @@
 import streamlit as st
-import pandas as pd
 from scipy import stats
 from statsmodels.stats.proportion import proportions_ztest
 import statsmodels.api as sm
 
 import plots
-import plotly.graph_objects as go # Move to plots
-
 from utils import *
 
 def render_infobox(dataset, time_to_fetch):
+    """Renders the top info box, calculates correlation. Returns corr matrix."""
         
     col1, corr_col = st.columns(2)
     with col1:
@@ -20,7 +18,7 @@ def render_infobox(dataset, time_to_fetch):
         with col1:
             st.write("**Columns:**", str(dataset.metadata.num_features))
             st.write("**Fetched in:**", time_to_fetch)
-            st.write("**Area:**", dataset.metadata.area)
+            st.write("**Category:**", dataset.metadata.area)
             st.write("**Creators:**", ", ".join(dataset.metadata.creators))
             
         with col2:
@@ -51,25 +49,16 @@ def render_infobox(dataset, time_to_fetch):
         st.write("**Additional variable info:**")
         st.code(dataset.metadata.additional_info.variable_info, language=None)
         st.write(get_written_summary(dataset))
-
-    return corr_matrix
-
+    
+    # This should work if the try-except block fails, #TODO force .corr() to fail test
+    if not corr_matrix.empty:
+        return corr_matrix
+    return None
 
 def render_analysis_header(dataset):
+    """Allows selection for target column, random seed and active button."""
 
-    # Define background color
-    background_color = "#000000"  # Example color
-
-    # Set background color for the entire page
-    st.markdown(f"""
-        <style>
-            .reportview-container {{
-                background: {background_color};
-            }}
-        </style>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns([0.2,0.4,0.2])
 
     with col1:
         st.empty()
@@ -115,12 +104,13 @@ def render_analysis_header(dataset):
 
 def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
     st.markdown("### One-sample t-Test")
+    st.markdown("""Construct a hypothesis test that compares the mean of a sample to a specified value, known as the null hypothesis mean ($\mu_0$).""")
 
     col1, plot_col = st.columns(2)
 
     with col1:
 
-        # For Wine Dataset
+        # For Wine Dataset (Default)
         pre_select_index = 8 if DEFAULT_DATASET_IDX == 66 else 0
         ttest1_target_param = st.selectbox("Select Parameter:", [col for col in dataset.data.original.columns if col != target_column], index=pre_select_index)
         
@@ -135,7 +125,7 @@ def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            null_hypothesis = st.number_input("Threshold for $H_0$ (Null hypothesis)", value=1.75, help=tooltips.null_hypothesis_threshold)
+            null_hypothesis = st.number_input("Hypothesized mean $\mu_0$ ($H_0$ (Null hypothesis))", value=1.75, help=tooltips.null_hypothesis_threshold)
         with col2:
             alternative_hypothesis = st.selectbox("$H_1$ (Alternative hypothesis)", options=['Less', 'Greater', 'Two-sided'], index=0)
         with col3:
@@ -163,17 +153,16 @@ def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
                 h0_phrase = ""
                 h1_phrase = "either greater or lesser"
 
-            t_statistic, p_value = stats.ttest_1samp(sample_data, null_hypothesis, alternative=alternative_hypothesis.lower())
+            t_statistic, p_value = stats.ttest_1samp(sample_data, null_hypothesis, alternative=alternative)
 
-            
             with st.expander("Show your hypothesis:"):
 
                 st.write(f"""
-                        Null Hypothesis: $H_0: \mu {h0_operand} {null_hypothesis} $
+                        Null Hypothesis: $H_0: \mu_0 {h0_operand} {null_hypothesis} $
 
                         The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is equal to {h0_phrase} {null_hypothesis}.
 
-                        Alternative Hypothesis: $ H_1: \mu {h1_operand} {null_hypothesis} $
+                        Alternative Hypothesis: $ H_1: \mu_0 {h1_operand} {null_hypothesis} $
 
                         The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is {h1_phrase} than {null_hypothesis}.
 
@@ -181,29 +170,48 @@ def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
 
 
             st.write("**Results:**")
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.markdown(f"**T-Statistic:** {t_statistic:.{6}f}", help=tooltips.ttest_1samp_tstat)
+                st.markdown(f"**Sample mean:** {sample_data.mean():.{6}f}")
             with col2:
-                st.markdown(f"**P-Value:** {p_value:.{6}f}", help=tooltips.ttest_1samp_pval)
+                st.markdown(f"**Sample STD:** {sample_data.std():.{6}f}")
             with col3:
-                st.empty()
+                st.markdown(f"**T-Statistic:** {t_statistic:.{6}f}", help=tooltips.ttest_1samp_tstat)
+            with col4:
+                st.markdown(f"**P-Value:** {p_value:.{6}f}", help=tooltips.ttest_1samp_pval)
+
 
             if p_value < significance_alpha:
                 st.warning("Reject the null hypothesis.")
-                st.write(f"The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is with {(1-significance_alpha) * 100}% confidence significantly {alternative} than {null_hypothesis:.2f}.")
+                st.write(f"The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is with {((1-significance_alpha) * 100):.1f}% confidence significantly {alternative} than {null_hypothesis:.2f}.")
             else:
                 st.info("Accept the null hypothesis.")
                 if alternative_hypothesis == "Two-sided":
                     alternative = 'different'
-                st.write(f"The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is with {(1-significance_alpha) * 100}% confidence **not** significantly {alternative} than {null_hypothesis:.2f}.")
+                st.write(f"The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is with {((1-significance_alpha) * 100):.1f}% confidence **not** significantly {alternative} than {null_hypothesis:.2f}.")
 
 
         except Exception as e:
             st.error(f"An error occurred while performing hypothesis testing: {e}")
 
         with st.expander("About one-sample t-tests"):
-            st.markdown("The t-test for one sample is a statistical test used to determine whether the mean of a sample differs significantly from a known or hypothesized population mean. It is applicable when we have a single group of observations and want to assess whether the mean of that group is consistent with a specified value.")
+            st.markdown("The t-test for one sample is a test used to determine whether the mean of a sample differs significantly from a known or hypothesized population mean. It is applicable when we have a single group of observations and want to assess whether the mean of that group is consistent with a specified value. The test statistic ($t$) is calculated as:")
+            st.latex(r"t = \frac{\bar{x} - \mu_0}{\frac{s}{\sqrt{n}}}")
+            st.markdown("""
+            Where:
+
+            - $ x̄ $ represents the sample mean,
+            - $ \mu_0 $ represents the hypothesized population mean (the mean specified in the null hypothesis),
+            - $ s $ represents the sample standard deviation, and
+            - $ n $ represents the sample size.
+
+            The formula calculates the t-statistic, which measures how many standard errors the sample mean ($ x̄ $) is away from the hypothesized population mean ($ \mu_0 $). If the calculated t-statistic is large in absolute value, it indicates that the sample mean is significantly different from the hypothesized population mean. This t-statistic is then used to determine the p-value, which helps in deciding whether to reject or fail to reject the null hypothesis.
+            """)
+            st.markdown("""
+            The p-value is the probability of observing a t-statistic as extreme as, or more extreme than, the one obtained from the sample, under the assumption that the null hypothesis is true. It's represented as:
+            """)
+            st.latex(r"P(|T| > |t|)")
+            st.markdown("""Where $ T $ follows a t-distribution with $ n - 1 $ degrees of freedom.""")
 
     with plot_col:
 
@@ -228,11 +236,10 @@ def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_I
 
         prop_ztest_param = st.selectbox("Select Variable:", [col for col in dataset.data.original.columns if col != target_column], index=pre_select_index)
 
-        st.write("Filter select filter for first proportion $\hat{p}_1$")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            select_class1 = st.selectbox(f"Select category from {target_column}", dataset.data.original[target_column].unique(), index=1, key="select_class1")
-            select_class2 = st.selectbox(f"Select category from {target_column}", dataset.data.original[target_column].unique(), index=2, key="select_class2")
+            select_class1 = st.selectbox(f"$\hat{{p}}_1$: Select category from {target_column}", dataset.data.original[target_column].unique(), index=1, key="select_class1")
+            select_class2 = st.selectbox(f"$\hat{{p}}_2$: Select category from {target_column}", dataset.data.original[target_column].unique(), index=2, key="select_class2")
         with col2:
             class_1_operand = st.selectbox(f"Select opearand", ["<", ">"], index=1, key="ztest_operand_1")
             class_2_operand = st.selectbox(f"Select opearand", ["<", ">"], index=1, key="ztest_operand_2")
@@ -266,10 +273,29 @@ def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_I
                     """)
 
 
+
+
+
         try:
             p1 = dataset.data.original[dataset.data.original[target_column] == select_class1].sample(n_samples_1, random_state=random_seed)
             p2 = dataset.data.original[dataset.data.original[target_column] == select_class2].sample(n_samples_2, random_state=random_seed)
             
+            # if class_1_operand == ">":
+            #     p1 = dataset.data.original[(dataset.data.original[prop_ztest_param] > class_1_thresh)].sample(n_samples_1, random_state=random_seed)
+            # if class_2_operand == ">":
+            #     p2 = dataset.data.original[(dataset.data.original[prop_ztest_param] > class_2_thresh)].sample(n_samples_2, random_state=random_seed)
+
+            # if class_1_operand == "<":
+            #     p1 = dataset.data.original[(dataset.data.original[prop_ztest_param] < class_1_thresh)].sample(n_samples_1, random_state=random_seed)
+            # if class_2_operand == "<":
+            #     p2 = dataset.data.original[(dataset.data.original[prop_ztest_param] < class_2_thresh)].sample(n_samples_2, random_state=random_seed)
+
+
+            
+                
+
+
+
             # prop_1 = (sample_data_1[prop_ztest_param] > null_hypothesis_threshold).mean()
             # prop_2 = (sample_data_2[prop_ztest_param] > null_hypothesis_threshold).mean()
 
@@ -329,16 +355,16 @@ def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_I
 
 def run_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
     st.write("### Confidence Interval")
+    st.markdown("""Construct a confidence interval (CI) to estimate the range of plausible values for a population parameter based on samples.""")
     col1, col_plot = st.columns(2)
     with col1:
 
         # For Wine Dataset
         pre_select_index = 5 if DEFAULT_DATASET_IDX == 66 else 0
         ci_target_param = st.selectbox("Select Parameter:", [col for col in dataset.data.original.columns if col != target_column], index=pre_select_index)
+
         col1, col2 = st.columns(2)
         with col1:
-
-
             pre_select_index = 1 if DEFAULT_DATASET_IDX == 66 else 0
             select_class1 = st.selectbox(f"Select category from {target_column} column", dataset.data.original[target_column].unique(), index=1, key="select_class1")
             select_class2 = st.selectbox(f"Select category from {target_column} column", dataset.data.original[target_column].unique(), index=pre_select_index+1, key="select_class2")
@@ -349,12 +375,9 @@ def run_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET
         
         confidence_level = st.number_input("Confidence Level (%):", min_value=0.0, max_value=100.0, step=0.1, value=95.0, help=tooltips.ci_level)
 
-
-
         sample_data_1 = dataset.data.original[dataset.data.original[target_column] == select_class1][ci_target_param].sample(n_samples_1, random_state=random_seed)
         sample_data_2 = dataset.data.original[dataset.data.original[target_column] == select_class2][ci_target_param].sample(n_samples_2, random_state=random_seed)
 
-        # Calculate mean, standard deviation, standard error, degrees of freedom, t-value, margin of error, and confidence interval
         mean_2 = sample_data_1.mean()
         mean_3 = sample_data_2.mean()
         std_2 = sample_data_1.std()
@@ -370,17 +393,18 @@ def run_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET
         st.write(f"**Results:** {confidence_level:.1f}% Confidence Interval for the Difference in {ci_target_param}:")
 
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.markdown(f"**Lower Bound:** {CI_lower.round(5)}")
         with col2:
             st.markdown(f"**Upper Bound:** {CI_upper.round(5)}")
         with col3:
+            st.markdown(f"**SE:** {SE.round(5)}")
+        with col4:
             st.markdown(f"**Margin of Error (MOE):** {ME.round(5)}", help=tooltips.ci_moe)
 
 
         st.write(f"The true difference in {ci_target_param} between the {target_column} {select_class1} and {target_column} {select_class2} varieties falls within the range of {CI_lower:.3f} to {CI_upper:.3f}, with {confidence_level:.1f}% confidence.")
-
 
         if CI_lower > 0:
             st.info(f"""
@@ -391,16 +415,13 @@ def run_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET
     with col_plot:
         plots.render_violin_plot(target_column, ci_target_param, select_class1, select_class2, sample_data_1, sample_data_2)
 
-        st.markdown("Placeholder", help=tooltips.violin_plot)
-
 
 def run_linear_regression(dataset, target_column, random_seed):
     st.markdown("### Linear Regression")
-
+    st.markdown("Perform a regression analysis that models the relationship between a predictor variables and a target variable.")
     col1, plot_col = st.columns(2)
 
     with col1:
-        # Select predictor and target variables
         col1, col2, col3 = st.columns(3)
         with col1:
             select_class = st.selectbox(f"Select category from {target_column}", dataset.data.original[target_column].unique(), index=1, key="select_class1")
@@ -410,7 +431,6 @@ def run_linear_regression(dataset, target_column, random_seed):
             target_variable = st.selectbox("Select target variable", dataset.data.original.columns, index=1)
 
         model_type = st.selectbox("Select Model Type", ["OLS", "WLS", "GLS"])
-
 
         # TODO option to deselect filtering
         filtered_data = dataset.data.original[dataset.data.original[target_column] == select_class]
