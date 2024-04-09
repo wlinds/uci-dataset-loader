@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import plots
 from utils import *
 from uci_api import *
-from components import *
+from gui_components import *
 
 DEFAULT_DATASET_IDX = 66 # Set default loaded dataset when launching app
 
@@ -43,16 +43,16 @@ def main():
     active_button, target_column, random_seed = render_analysis_header(dataset)
 
     if active_button == "One-sample t-Test":
-        run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX)
+        render_ttest(dataset, target_column, random_seed, DEFAULT_DATASET_IDX)
 
     elif active_button == "Proportions z-Test":
-        run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_IDX)
+        render_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_IDX)
 
     elif active_button == "Confidence Interval":
-        run_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET_IDX)
+        render_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET_IDX)
 
     elif active_button == "Linear Regression":
-        run_linear_regression(dataset, target_column, random_seed)
+        render_linear_regression(dataset, target_column, random_seed)
 
     else:
         st.warning("No idea how you managed to get here. Reload page.")
