@@ -5,6 +5,7 @@ import statsmodels.api as sm
 
 import plots
 from utils import *
+from analysis import get_top_correlations, run_ttest_1samp, run_proportions_ztest, run_ci, run_linear_regression
 
 def render_infobox(dataset, time_to_fetch):
     """Renders the top info box, calculates correlation. Returns corr matrix."""
@@ -43,7 +44,6 @@ def render_infobox(dataset, time_to_fetch):
             except Exception as e:
                 st.error(f"An error occurred while calculating the correlations: {e}")
 
-
     with st.expander(f"Dataset details"):
         st.markdown(dataset.metadata.additional_info.summary)
         st.write("**Additional variable info:**")
@@ -54,6 +54,7 @@ def render_infobox(dataset, time_to_fetch):
     if not corr_matrix.empty:
         return corr_matrix
     return None
+
 
 def render_analysis_header(dataset):
     """Allows selection for target column, random seed and active button."""
@@ -102,7 +103,7 @@ def render_analysis_header(dataset):
 
     return active_button, target_column, random_seed
 
-def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
+def render_ttest(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
     st.markdown("### One-sample t-Test")
     st.markdown("""Construct a hypothesis test that compares the mean of a sample to a specified value, known as the null hypothesis mean ($\mu_0$).""")
 
@@ -125,11 +126,11 @@ def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            null_hypothesis = st.number_input("Hypothesized mean $\mu_0$ ($H_0$ (Null hypothesis))", value=1.75, help=tooltips.null_hypothesis_threshold)
+            popmean = st.number_input("$\mu_0$ (Hypothesized mean)", value=1.75, help=tooltips.null_hypothesis_threshold)
         with col2:
             alternative_hypothesis = st.selectbox("$H_1$ (Alternative hypothesis)", options=['Less', 'Greater', 'Two-sided'], index=0)
         with col3:
-            significance_alpha = st.number_input("Threshold for $a$ (Significance)", value=0.05, min_value=0.0, max_value=1.0, help=tooltips.significance_level)
+            significance_alpha = st.number_input("$a$ (Significance)", value=0.05, min_value=0.0, max_value=1.0, help=tooltips.significance_level)
 
         try:
             sample_data = dataset.data.original[dataset.data.original[target_column].isin(selected_classes)].sample(n_samples, random_state=random_seed)[ttest1_target_param]
@@ -152,22 +153,21 @@ def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
                 h1_operand = "≠" 
                 h0_phrase = ""
                 h1_phrase = "either greater or lesser"
-
-            t_statistic, p_value = stats.ttest_1samp(sample_data, null_hypothesis, alternative=alternative)
-
+            
             with st.expander("Show your hypothesis:"):
 
                 st.write(f"""
-                        Null Hypothesis: $H_0: \mu_0 {h0_operand} {null_hypothesis} $
+                        Null Hypothesis: $H_0: \mu_0 {h0_operand} {popmean} $
 
-                        The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is equal to {h0_phrase} {null_hypothesis}.
+                        The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is equal to {h0_phrase} {popmean}.
 
-                        Alternative Hypothesis: $ H_1: \mu_0 {h1_operand} {null_hypothesis} $
+                        Alternative Hypothesis: $ H_1: \mu_0 {h1_operand} {popmean} $
 
-                        The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is {h1_phrase} than {null_hypothesis}.
+                        The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is {h1_phrase} than {popmean}.
 
                         """)
 
+            t_statistic, p_value = run_ttest_1samp(sample_data, popmean, alternative=alternative)
 
             st.write("**Results:**")
             col1, col2, col3, col4 = st.columns(4)
@@ -183,12 +183,12 @@ def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
 
             if p_value < significance_alpha:
                 st.warning("Reject the null hypothesis.")
-                st.write(f"The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is with {((1-significance_alpha) * 100):.1f}% confidence significantly {alternative} than {null_hypothesis:.2f}.")
+                st.write(f"The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is with {((1-significance_alpha) * 100):.1f}% confidence significantly {alternative} than {popmean:.2f}.")
             else:
                 st.info("Accept the null hypothesis.")
                 if alternative_hypothesis == "Two-sided":
                     alternative = 'different'
-                st.write(f"The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is with {((1-significance_alpha) * 100):.1f}% confidence **not** significantly {alternative} than {null_hypothesis:.2f}.")
+                st.write(f"The mean amount of {ttest1_target_param} in {target_column} {str(selected_classes[0])} is with {((1-significance_alpha) * 100):.1f}% confidence **not** significantly {alternative} than {popmean:.2f}.")
 
 
         except Exception as e:
@@ -213,10 +213,6 @@ def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
             st.latex(r"P(|T| > |t|)")
             st.markdown("""Where $ T $ follows a t-distribution with $ n - 1 $ degrees of freedom.""")
 
-    with plot_col:
-
-        plots.render_histogram_2(sample_data, ttest1_target_param, null_hypothesis, significance_alpha)
-
         with st.expander("About hypothesized mean"):
             st.markdown("""
 
@@ -225,7 +221,11 @@ def run_ttest_1samp(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
             
             """)
 
-def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
+    with plot_col:
+        plots.render_ttest_histogram(sample_data, ttest1_target_param, popmean, significance_alpha)
+
+
+def render_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
 
     st.markdown("### Hypothesis Test for Proportions")
     col1, col_plot = st.columns(2)
@@ -236,13 +236,14 @@ def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_I
 
         prop_ztest_param = st.selectbox("Select Variable:", [col for col in dataset.data.original.columns if col != target_column], index=pre_select_index)
 
+
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             select_class1 = st.selectbox(f"$\hat{{p}}_1$: Select category from {target_column}", dataset.data.original[target_column].unique(), index=1, key="select_class1")
             select_class2 = st.selectbox(f"$\hat{{p}}_2$: Select category from {target_column}", dataset.data.original[target_column].unique(), index=2, key="select_class2")
         with col2:
-            class_1_operand = st.selectbox(f"Select opearand", ["<", ">"], index=1, key="ztest_operand_1")
-            class_2_operand = st.selectbox(f"Select opearand", ["<", ">"], index=1, key="ztest_operand_2")
+            class_1_operand = st.selectbox(f"Select operand", ["<", ">"], index=1, key="ztest_operand_1")
+            class_2_operand = st.selectbox(f"Select operand", ["<", ">"], index=1, key="ztest_operand_2")
         with col3:
             class_1_thresh = st.number_input(f"Select threshold", value=20, key="class_1_thresh")
             class_2_thresh = st.number_input(f"Select threshold", value=20, key="class_2_thresh")
@@ -254,7 +255,7 @@ def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_I
         with col1:
             null_hypothesis_threshold = st.number_input("Threshold for $H_0$ (Null hypothesis)", value=20, help=tooltips.null_hypothesis_threshold)
         with col2:
-            alternative_hypothesis = st.selectbox("$H_1$ (Alternative hypothesis)", options=['Less', 'Greater', 'Two-sided'], index=0)
+            alternative_hypothesis = st.selectbox("$H_1$ (Alternative hypothesis)", options=['Less', 'Greater', 'Two-sided'], index=2)
         with col3:
             significance_alpha = st.number_input("Threshold for $a$ (Significance)", value=0.05, min_value=0.0, max_value=1.0, help=tooltips.significance_level)
 
@@ -272,14 +273,13 @@ def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_I
 
                     """)
 
-
-
-
-
         try:
             p1 = dataset.data.original[dataset.data.original[target_column] == select_class1].sample(n_samples_1, random_state=random_seed)
             p2 = dataset.data.original[dataset.data.original[target_column] == select_class2].sample(n_samples_2, random_state=random_seed)
-            
+        
+            z_statistic, p_value, prop_1, prop_2 = run_proportions_ztest(p1, p2, prop_ztest_param, class_1_thresh, class_2_thresh)
+
+
             # if class_1_operand == ">":
             #     p1 = dataset.data.original[(dataset.data.original[prop_ztest_param] > class_1_thresh)].sample(n_samples_1, random_state=random_seed)
             # if class_2_operand == ">":
@@ -291,50 +291,16 @@ def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_I
             #     p2 = dataset.data.original[(dataset.data.original[prop_ztest_param] < class_2_thresh)].sample(n_samples_2, random_state=random_seed)
 
 
-            
-                
-
-
-
-            # prop_1 = (sample_data_1[prop_ztest_param] > null_hypothesis_threshold).mean()
-            # prop_2 = (sample_data_2[prop_ztest_param] > null_hypothesis_threshold).mean()
-
-            # z_statistic, p_value = sm.stats.proportions_ztest([prop_1 * n_samples_1, prop_2 * n_samples_2], [n_samples_1, n_samples_2], alternative=format_alternative_hypothesis(alternative_hypothesis))
-            
-
-            # Filter data based on selected thresholds and operands
-            # if class_1_operand == ">":
-            #     p1 = dataset.data.original[dataset.data.original[target_column] > class_1_thresh].sample(n_samples_1, random_state=random_seed)
-            # else:
-            #     p1 = dataset.data.original[dataset.data.original[target_column] < class_1_thresh].sample(n_samples_1, random_state=random_seed)
-
-            # if class_2_operand == ">":
-            #     p2 = dataset.data.original[dataset.data.original[target_column] > class_2_thresh].sample(n_samples_2, random_state=random_seed)
-            # else:
-            #     p2 = dataset.data.original[dataset.data.original[target_column] < class_2_thresh].sample(n_samples_2, random_state=random_seed)
-
-            # Count the number of successes (samples meeting the condition) in each class
-            successes_1 = sum(p1[prop_ztest_param] > class_1_thresh)
-            successes_2 = sum(p2[prop_ztest_param] > class_2_thresh)
-
-            # Number of trials (total samples) in each class
-            nobs_1 = len(p1)
-            nobs_2 = len(p2)
-
-            # Perform the Z-test for proportions
-            z_statistic, p_value = proportions_ztest([successes_1, successes_2], [nobs_1, nobs_2])
-
-            prop_1 = successes_1 / nobs_1
-            prop_2 = successes_2 / nobs_2
-
             st.write("**Results:**")
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.markdown(f"**Z-Statistic:** {z_statistic:.{6}f}", help="Placeholde")
+                st.markdown(f"**Proportions for {target_column} {select_class1}:** {prop_1}", help="Placeholde")
             with col2:
-                st.markdown(f"**P-Value:** {p_value:.{6}f}", help=tooltips.ttest_1samp_pval)
+                st.markdown(f"**Proportions for {target_column} {select_class2}:** {prop_2}", help="Placeholde")
             with col3:
-                st.empty()
+                st.markdown(f"**Z-Statistic:** {z_statistic:.{6}f}", help="Placeholde")
+            with col4:
+                st.markdown(f"**P-Value:** {p_value:.{6}f}", help=tooltips.ttest_1samp_pval)
 
             if p_value < significance_alpha:
                 st.warning("Reject the null hypothesis.")
@@ -353,7 +319,7 @@ def run_proportion_z_test(dataset, target_column, random_seed, DEFAULT_DATASET_I
         # plots.render_barplot_proportions(select_class1, select_class2, prop_1, prop_2, null_hypothesis_threshold, prop_ztest_param)    
         # st.markdown("Placeholder", help=tooltips.violin_plot)
 
-def run_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
+def render_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET_IDX):
     st.write("### Confidence Interval")
     st.markdown("""Construct a confidence interval (CI) to estimate the range of plausible values for a population parameter based on samples.""")
     col1, col_plot = st.columns(2)
@@ -378,17 +344,8 @@ def run_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET
         sample_data_1 = dataset.data.original[dataset.data.original[target_column] == select_class1][ci_target_param].sample(n_samples_1, random_state=random_seed)
         sample_data_2 = dataset.data.original[dataset.data.original[target_column] == select_class2][ci_target_param].sample(n_samples_2, random_state=random_seed)
 
-        mean_2 = sample_data_1.mean()
-        mean_3 = sample_data_2.mean()
-        std_2 = sample_data_1.std()
-        std_3 = sample_data_2.std()
-        SE = np.sqrt((std_2**2 / len(sample_data_1)) + (std_3**2 / len(sample_data_2)))
-        df = len(sample_data_1) + len(sample_data_2) - 2
-        alpha = (100 - confidence_level) / 100
-        t_value = stats.t.ppf(1 - alpha / 2, df)
-        ME = t_value * SE
-        CI_lower = (mean_2 - mean_3) - ME
-        CI_upper = (mean_2 - mean_3) + ME
+
+        CI_lower, CI_upper, SE, ME, t_value, df = run_ci(sample_data_1, sample_data_2, confidence_level)
 
         st.write(f"**Results:** {confidence_level:.1f}% Confidence Interval for the Difference in {ci_target_param}:")
 
@@ -416,12 +373,13 @@ def run_confidence_interval(dataset, target_column, random_seed, DEFAULT_DATASET
         plots.render_violin_plot(target_column, ci_target_param, select_class1, select_class2, sample_data_1, sample_data_2)
 
 
-def run_linear_regression(dataset, target_column, random_seed):
-    st.markdown("### Linear Regression")
-    st.markdown("Perform a regression analysis that models the relationship between a predictor variables and a target variable.")
+def render_linear_regression(dataset, target_column, random_seed):
+    
     col1, plot_col = st.columns(2)
-
     with col1:
+        st.markdown("### Linear Regression")
+        st.markdown("Perform a regression analysis that models the relationship between a predictor variables and a target variable.")
+
         col1, col2, col3 = st.columns(3)
         with col1:
             select_class = st.selectbox(f"Select category from {target_column}", dataset.data.original[target_column].unique(), index=1, key="select_class1")
@@ -435,42 +393,24 @@ def run_linear_regression(dataset, target_column, random_seed):
         # TODO option to deselect filtering
         filtered_data = dataset.data.original[dataset.data.original[target_column] == select_class]
 
-        X, y  = filtered_data[predictor_variable], filtered_data[target_variable]
-        X = sm.add_constant(X)
-
-        if model_type == "OLS":
-            model = sm.OLS(y, X).fit()
-
-        elif model_type == "WLS":
-
-            st.info("Weighted Least Squares (WLS) requires specifying weights. If you're unsure, you can try equal weights or use variance-stabilizing transformations.")
-            weights_option = st.selectbox("Select Weights Option", ["Equal Weights", "Variance-Stabilizing Transformations"])
-            if weights_option == "Equal Weights":
-                weights = np.ones_like(y)
-            else:
-                weights = np.log(y)  # TODO
-            model = sm.WLS(y, X, weights=weights).fit()
-
-        elif model_type == "GLS":
-
-            st.info("Generalized Least Squares (GLS) requires specifying the covariance structure. You can try different covariance estimators based on your assumptions about the data.")
-            cov_structure_option = st.selectbox("Select Covariance Structure", ["Autoregressive (AR)", "Moving Average (MA)", "Heteroscedasticity-Consistent (HC)"])
-            if cov_structure_option == "Autoregressive (AR)":
-                cov_structure = "ar"
-            elif cov_structure_option == "Moving Average (MA)":
-                    cov_structure = "ma"
-            else:
-                cov_structure = "hc0"
-                model = sm.GLS(y, X, cov_type=cov_structure).fit()
+        model, X = run_linear_regression(model_type, filtered_data, predictor_variable, target_variable)
 
         st.markdown("#### Model Summary:") # TODO format
         st.code(model.summary())
 
-        with plot_col:
-            plots.render_linreg_scatter(model, filtered_data, predictor_variable, target_variable, X)
-            
-            # Inference
-            st.markdown("### Make Prediction:")
-            new_value = st.number_input(f"Enter value for {predictor_variable}")
+    with plot_col:
+        # Inference
+        st.markdown("### Make Predictions:")
+        st.markdown("Input new values for the predictor variable to generate predictions.")
+        
+        # TODO Improve inference GUI - allow multiple values
+        col1, col2 = st.columns(2)
+        with col1:
+            new_value = st.number_input(f"Enter value for {predictor_variable}", value=filtered_data[predictor_variable].mean())
             prediction = model.predict([1, new_value])[0]
-            st.write(f"Predicted {target_variable}: {prediction}")
+        with col2:
+            st.write("##")
+            st.write(f"**Predicted {target_variable}:** {prediction:.4f}")
+        
+        plots.render_linreg_scatter(model, filtered_data, predictor_variable, target_variable, X, [new_value], ["#d19e0f"])
+            
