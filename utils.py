@@ -62,19 +62,6 @@ def format_alternative_hypothesis(value):
     else:
         return None
 
-def get_top_correlations(corr_matrix, n=1):
-    # Excludes self-correlations (diagonal)
-
-    num_features = len(corr_matrix)
-    n = min(n, num_features)
-    
-    corr_matrix_no_diag = corr_matrix.mask(np.eye(num_features, dtype=bool))
-    
-    top_positive_corr = corr_matrix_no_diag.unstack().sort_values(ascending=False)[:n]
-    top_negative_corr = corr_matrix_no_diag.unstack().sort_values()[:n]
-
-    return top_positive_corr, top_negative_corr
-
 
 def style_df(val):
     return f'color: #000000'
