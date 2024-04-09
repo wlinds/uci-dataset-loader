@@ -17,7 +17,7 @@ API_LIST_URL = 'https://archive.ics.uci.edu/api/datasets/list'
 DATASET_FILE_BASE_URL = 'https://archive.ics.uci.edu/static/public'
 
 
-@st.cache_data
+@st.cache_resource
 def list_available_datasets(filter: Optional[str] = None, search: Optional[str] = None, area: Optional[str] = None):
     if filter:
         if type(filter) != str:
@@ -63,7 +63,7 @@ def list_available_datasets(filter: Optional[str] = None, search: Optional[str] 
 
     return data
 
-@st.cache_data
+@st.cache_resource
 def fetch_ucirepo(
         name: Optional[str] = None, 
         id: Optional[int] = None
