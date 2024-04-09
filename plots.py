@@ -159,7 +159,7 @@ def render_histogram_2(sample_data, ttest1_target_param, null_hypothesis, signif
                     xaxis_title=ttest1_target_param,
                     yaxis_title='Probability Density',
                     width=800,
-                    height=488),
+                    height=552),
 
     st.plotly_chart(fig)
 
@@ -168,7 +168,7 @@ def render_linreg_scatter(model, filtered_data, predictor_variable, target_varia
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=filtered_data[predictor_variable], y=filtered_data[target_variable], mode='markers'))
     fig.add_trace(go.Scatter(x=filtered_data[predictor_variable], y=model.predict(X), mode='lines', line=dict(color='red')))
-    fig.update_layout(title="Scatter Plot with Regression Line", xaxis_title=predictor_variable, yaxis_title=target_variable)
+    fig.update_layout(xaxis_title=predictor_variable, yaxis_title=target_variable)
     fig.update_layout(
         width=900,
         height=600,
