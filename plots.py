@@ -149,10 +149,10 @@ def render_stacked_barplot(select_class1, select_class2, prop_1, prop_2, null_hy
     st.plotly_chart(fig, config={'displayModeBar': False})
 
 
-def render_histogram_2(sample_data, ttest1_target_param, null_hypothesis, significance_alpha):
+def render_ttest_histogram(sample_data, ttest1_target_param, popmean, significance_alpha):
     fig = go.Figure()
     fig.add_trace(go.Histogram(x=sample_data, histnorm='probability density', name='Sample Data'))
-    fig.add_vline(x=null_hypothesis, line_dash="dash", line_color="red", annotation_text="Hypothesized Mean",
+    fig.add_vline(x=popmean, line_dash="dash", line_color="red", annotation_text="Hypothesized Mean",
                 annotation_position="top right", annotation_font=dict(size=12))
 
     fig.update_layout(title=f'Distribution of {ttest1_target_param}',
@@ -164,10 +164,20 @@ def render_histogram_2(sample_data, ttest1_target_param, null_hypothesis, signif
     st.plotly_chart(fig)
 
 
-def render_linreg_scatter(model, filtered_data, predictor_variable, target_variable, X):
+def render_linreg_scatter(model, filtered_data, predictor_variable, target_variable, X, new_values=None, colors=None):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=filtered_data[predictor_variable], y=filtered_data[target_variable], mode='markers'))
-    fig.add_trace(go.Scatter(x=filtered_data[predictor_variable], y=model.predict(X), mode='lines', line=dict(color='red')))
+    # Scatter plot of original data
+    fig.add_trace(go.Scatter(x=filtered_data[predictor_variable], y=filtered_data[target_variable], mode='markers', name='Original Data'))
+    
+    # Line plot for regression line
+    fig.add_trace(go.Scatter(x=filtered_data[predictor_variable], y=model.predict(X), mode='lines', line=dict(color='#79c9d9'), name='Regression Line'))
+    
+    # Add new predictions if provided
+    if new_values is not None:
+        for i, (value, color) in enumerate(zip(new_values, colors)):
+            prediction = model.predict([1, value])[0]
+            fig.add_trace(go.Scatter(x=[value], y=[prediction], mode='markers', marker=dict(color=color), name=f'Prediction {i+1}'))
+
     fig.update_layout(xaxis_title=predictor_variable, yaxis_title=target_variable)
     fig.update_layout(
         width=900,
